@@ -4,7 +4,7 @@
 Application allows users to display plots of weather data for example temperature, air pollution data and sends alerts/notifications if any values exceed limits.
 
 - Cloud Run – to run the application
-- Cloud Scheduler – trigger cloud function
+- Cloud Scheduler – collect data, trigger in some time
 - Cloud SQL - database
 - Cloud Functions – checks data limits and send alerts
 - Weather API - external API to receive data
