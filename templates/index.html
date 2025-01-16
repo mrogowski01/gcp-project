@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Data Charts</title>
+    <style>
+        .navbar {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            background-color: #333;
+        }
+
+        .navbar li {
+            margin: 0;
+            padding: 0;
+        }
+
+        .navbar a {
+            display: block;
+            padding: 10px 20px;
+            color: white;
+            text-decoration: none;
+        }
+
+        .navbar a:hover {
+            background-color: #555;
+        }
+
+        .content {
+            padding: 20px;
+            text-align: center;
+        }
+
+        .chart-container {
+            margin-top: 40px;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+
+    </style>
+</head>
+<body>
+    <nav>
+        <ul class="navbar">
+            <li><a href="/">Main page</a></li>
+            <li><a href="/changeParameter">Change alert values</a></li>
+        </ul>
+    </nav>
+
+    <div class="content">
+        <h1>Weather Data Charts</h1>
+
+        <div class="chart-container">
+            <h2>Temperatura</h2>
+            <img src="data:image/png;base64,{{ chart_temp }}" alt="Temperatura">
+        </div>
+
+        <div class="chart-container">
+            <h2>Wilgotność</h2>
+            <img src="data:image/png;base64,{{ chart_humidity }}" alt="Wilgotność">
+        </div>
+    </div>
+</body>
+</html>
