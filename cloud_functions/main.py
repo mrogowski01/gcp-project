@@ -1,6 +1,6 @@
 import os
 import sqlalchemy
-from sqlalchemy import create_engine, Column, Float, DateTime, Integer
+from sqlalchemy import text, create_engine, Column, Float, DateTime, Integer
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from flask import jsonify, request
@@ -11,40 +11,37 @@ import functions_framework
 import psycopg2
 
 def save_weather_data(data):
-    db_uri = "postgresql+psycopg2://xfregnil:YSq_rH6EbdiUa61ZDEkud1egutaJKd3j@kandula.db.elephantsql.com/xfregnil"
+    db_uri = "postgresql+psycopg2://avnadmin:AVNS_8YZJQ2WxUzOLlaDLCfg@pg-ca14958-michalek32001-bf66.l.aivencloud.com:22974/defaultdb?sslmode=require"
+    
     if not db_uri:
         raise ValueError("DB_URI environment variable not set.")
+    
+    engine = create_engine(db_uri, pool_size=100, pool_timeout=30, pool_recycle=1800)
+    
     try:
-        engine = sqlalchemy.create_engine(db_uri)
-        conn = engine.connect()
-        print("Connection successful")
-    except Exception as e:
-        print(f"Error connecting to the database: {e}")
-        raise
-    try:
-        conn.execute(
-            sqlalchemy.text(
-                """
+        with engine.connect() as conn:
+            print("Connection successful")
+
+            query = text("""
                 INSERT INTO weather_data (temp, wind, humidity, pm2_5, pm10, last_updated)
                 VALUES (:temperature, :wind, :humidity, :pm2_5, :pm10, :last_updated)
-                """
-            ),
-            {
+            """)
+            
+            conn.execute(query, {
                 "temperature": data["temperature"],
                 "wind": data["wind"],
                 "humidity": data["humidity"],
                 "pm2_5": data["pm2_5"],
                 "pm10": data["pm10"],
                 "last_updated": datetime.datetime.now(),
-            },
-        )
-        conn.commit()
-        print("Data inserted successfully")
+            })
+            conn.commit()
+            print(data)
+            print("Data inserted successfully")
+    
     except Exception as e:
         print(f"Error inserting data: {e}")
         raise
-    finally:
-        conn.close()
 
 def return_data(request):
     api_url = "http://api.weatherapi.com/v1/current.json?key=3309dc60d52d4a63ad6214517251601&q=Cracow&aqi=yes"
@@ -64,7 +61,7 @@ def return_data(request):
         print(f"Fetched data: {data}")
 
         save_weather_data(data)
-        print("Data fetched and saved successfully")
+        return jsonify({"message": "Data fetched and saved successfully", "data": data}), 200
     except Exception as e:
         logging.error(f"Error in return_data: {e}")
         return jsonify({"error": str(e)}), 500
