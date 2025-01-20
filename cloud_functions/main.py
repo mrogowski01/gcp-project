@@ -1,98 +1,51 @@
+import os
+import sqlalchemy
 from sqlalchemy import create_engine, Column, Float, DateTime, Integer
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from flask import jsonify
+from flask import jsonify, request
 import requests
-import smtplib
-from email.message import EmailMessage
 import datetime
 import logging
 import functions_framework
-
-Base = declarative_base()
-
-class WeatherData(Base):
-    __tablename__ = 'weather_data'
-    data_id = Column(Integer, primary_key=True)
-    temp = Column(Float, nullable=False)
-    wind = Column(Float, nullable=False)
-    humidity = Column(Float, nullable=False)
-    pm2_5 = Column(Float, nullable=False)
-    pm10 = Column(Float, nullable=False)
-    last_updated = Column(DateTime, nullable=False)
-
-class Parameter(Base):
-    __tablename__ = 'parameter'
-    id = Column(Integer, primary_key=True)
-    temperature = Column(Float, nullable=False)
-    humidity = Column(Float, nullable=False)
-
-def get_engine():
-    return create_engine("postgresql+psycopg2://xfregnil:YSq_rH6EbdiUa61ZDEkud1egutaJKd3j@kandula.db.elephantsql.com/xfregnil")
+import psycopg2
 
 def save_weather_data(data):
-    engine = get_engine()
-    Session = sessionmaker(bind=engine)
-    session = Session()
+    db_uri = "postgresql+psycopg2://xfregnil:YSq_rH6EbdiUa61ZDEkud1egutaJKd3j@kandula.db.elephantsql.com/xfregnil"
+    if not db_uri:
+        raise ValueError("DB_URI environment variable not set.")
     try:
-        weather_record = WeatherData(
-            temp=data["temperature"],
-            wind=data["wind"],
-            humidity=data["humidity"],
-            pm2_5=data["pm2_5"],
-            pm10=data["pm10"],
-            last_updated=datetime.datetime)
-        session.add(weather_record)
-        session.commit()
+        engine = sqlalchemy.create_engine(db_uri)
+        conn = engine.connect()
+        print("Connection successful")
     except Exception as e:
-        session.rollback()
-        raise e
-    finally:
-        session.close()
-
-
-def check_threshold_and_notify(data):
-    engine = get_engine()
-    Session = sessionmaker(bind=engine)
-    session = Session()
+        print(f"Error connecting to the database: {e}")
+        raise
     try:
-        parameter = session.query(Parameter).first()
-        if not parameter:
-            logging.warning("No threshold parameters")
-            return
-
-        if data["temp_c"] > parameter.temperature or data["humidity"] > parameter.humidity:
-            logging.info("Threshold exceeded")
-
-            msg = EmailMessage()
-            msg['Subject'] = 'Weather Alert'
-            msg['From'] = 'gcp.projekt.mail@gmail.com'
-            msg['To'] = 'mrogowski@student.agh.edu.pl'
-            msg.set_content(f"Warning!\n"
-                f"Temperature: {data['temperature']} (Threshold: {parameter.temperature})\n"
-                f"Humidity: {data['humidity']} (Threshold: {parameter.humidity})")
-            gmail_user = "gcp.projekt.mail@gmail.com"
-            gmail_app_password = "gcpprojektmail"
-
-            try:
-                with smtplib.SMTP('smtp.gmail.com', 587) as server:
-                    server.ehlo()
-                    server.starttls()
-                    server.ehlo()
-                    server.login(gmail_user, gmail_app_password)
-                    server.send_message(msg)
-
-                logging.info("Email sent successfully")
-            except Exception as e:
-                logging.error(f"Failed to send email: {e}")
-
+        conn.execute(
+            sqlalchemy.text(
+                """
+                INSERT INTO weather_data (temp, wind, humidity, pm2_5, pm10, last_updated)
+                VALUES (:temperature, :wind, :humidity, :pm2_5, :pm10, :last_updated)
+                """
+            ),
+            {
+                "temperature": data["temperature"],
+                "wind": data["wind"],
+                "humidity": data["humidity"],
+                "pm2_5": data["pm2_5"],
+                "pm10": data["pm10"],
+                "last_updated": datetime.datetime.now(),
+            },
+        )
+        conn.commit()
+        print("Data inserted successfully")
     except Exception as e:
-        logging.error(f"Error while checking thresholds: {e}")
+        print(f"Error inserting data: {e}")
+        raise
     finally:
-        session.close()
+        conn.close()
 
-
-@functions_framework.http
 def return_data(request):
     api_url = "http://api.weatherapi.com/v1/current.json?key=3309dc60d52d4a63ad6214517251601&q=Cracow&aqi=yes"
     try:
@@ -100,10 +53,18 @@ def return_data(request):
         if response.status_code != 200:
             return jsonify({"error": "Failed to fetch data from API"}), 500
 
-        data = response.json()
+        data = {
+            "temperature": response.json()["current"]["temp_c"],
+            "wind": response.json()["current"]["wind_kph"],
+            "humidity": response.json()["current"]["humidity"],
+            "pm2_5": response.json()["current"]["air_quality"]["pm2_5"],
+            "pm10": response.json()["current"]["air_quality"]["pm10"],
+        }
+        logging.info(f"Fetched data: {data}")
+        print(f"Fetched data: {data}")
+
         save_weather_data(data)
-        check_threshold_and_notify(data)
-        return f"Data fetched, saved to the database, and thresholds checked.", 200
+        print("Data fetched and saved successfully")
     except Exception as e:
         logging.error(f"Error in return_data: {e}")
         return jsonify({"error": str(e)}), 500
