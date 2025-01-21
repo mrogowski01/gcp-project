@@ -54,13 +54,13 @@ def create_temperature_chart(weather_data_list):
     times = [record.last_updated for record in weather_data_list]
     temperatures = [record.temp for record in weather_data_list]
     
+    indices = range(len(times))
     formatted_times = [time.strftime('%m-%d %H:%M') for time in times]
 
     plt.figure(figsize=(10, 6))
-    plt.plot(times, temperatures, label='Temperatura (°C)', color='tab:blue')
+    plt.plot(indices, temperatures, label='Temperatura (°C)', color='tab:blue')
     # plt.axhline(y=alarm_value, color='red', linestyle='--', label=f'Alarm value: {alarm_value}°C')
-    # plt.text(times[0], alarm_value + 1, 'Alarm value', color='red', fontsize=12)
-    plt.xticks(times, formatted_times, rotation=45)
+    plt.xticks(indices, formatted_times, rotation=45)
     plt.xlabel('Czas')
     plt.ylabel('Temperatura (°C)')
     plt.title('Temperatura w czasie')
@@ -73,6 +73,7 @@ def create_temperature_chart(weather_data_list):
     img_base64 = base64.b64encode(img.getvalue()).decode('utf8')
     return img_base64
 
+
 def create_pm2_5_chart(weather_data_list):
     parameter = Parameter.query.first()
     alarm_value = parameter.value2 if parameter else 0 
@@ -81,13 +82,14 @@ def create_pm2_5_chart(weather_data_list):
     times = [record.last_updated for record in weather_data_list]
     pm2_5 = [record.pm2_5 for record in weather_data_list]
     
+    indices = range(len(times))
     formatted_times = [time.strftime('%m-%d %H:%M') for time in times]
     
     plt.figure(figsize=(10, 6))
-    plt.plot(times, pm2_5, label='PM_2_5', color='tab:green')
+    plt.plot(indices, pm2_5, label='PM_2_5', color='tab:green')
     # plt.axhline(y=alarm_value, color='red', linestyle='--', label=f'Alarm value: {alarm_value}%')
     # plt.text(times[0], alarm_value + 1, 'Alarm value', color='red', fontsize=12)
-    plt.xticks(times, formatted_times, rotation=45)
+    plt.xticks(indices, formatted_times, rotation=45)
     plt.xlabel('Czas')
     plt.ylabel('PM_2_5')
     plt.title('PM_2_5 w czasie')
@@ -108,16 +110,45 @@ def create_pm10_chart(weather_data_list):
     times = [record.last_updated for record in weather_data_list]
     pm10 = [record.pm10 for record in weather_data_list]
     
+    indices = range(len(times))
     formatted_times = [time.strftime('%m-%d %H:%M') for time in times]
     
     plt.figure(figsize=(10, 6))
-    plt.plot(times, pm10, label='PM_10', color='tab:green')
+    plt.plot(indices, pm10, label='PM_10', color='tab:red')
     # plt.axhline(y=alarm_value, color='red', linestyle='--', label=f'Alarm value: {alarm_value}%')
     # plt.text(times[0], alarm_value + 1, 'Alarm value', color='red', fontsize=12)
-    plt.xticks(times, formatted_times, rotation=45)
+    plt.xticks(indices, formatted_times, rotation=45)
     plt.xlabel('Czas')
     plt.ylabel('PM_10')
     plt.title('PM_10')
+    plt.tight_layout()
+    plt.legend()
+
+    img = io.BytesIO()
+    plt.savefig(img, format='png')
+    img.seek(0)
+    img_base64 = base64.b64encode(img.getvalue()).decode('utf8')
+    return img_base64
+
+def create_humidity_chart(weather_data_list):
+    parameter = Parameter.query.first()
+    alarm_value = parameter.value2 if parameter else 0 
+    weather_data_list = weather_data_list[-20:]
+
+    times = [record.last_updated for record in weather_data_list]
+    humidity = [record.humidity for record in weather_data_list]
+    
+    indices = range(len(times))
+    formatted_times = [time.strftime('%m-%d %H:%M') for time in times]
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(indices, humidity, label='Humidity', color='tab:green')
+    # plt.axhline(y=alarm_value, color='red', linestyle='--', label=f'Alarm value: {alarm_value}%')
+    # plt.text(times[0], alarm_value + 1, 'Alarm value', color='red', fontsize=12)
+    plt.xticks(indices, formatted_times, rotation=45)
+    plt.xlabel('Czas')
+    plt.ylabel('Humidity')
+    plt.title('Humidity')
     plt.tight_layout()
     plt.legend()
 
@@ -148,7 +179,8 @@ def home():
     chart_temp = create_temperature_chart(weather_data_list)
     chart_pm2_5 = create_pm2_5_chart(weather_data_list)
     chart_pm10 = create_pm10_chart(weather_data_list)
-    return render_template('index.html', chart_temp=chart_temp, chart_pm2_5=chart_pm2_5, chart_pm10=chart_pm10)
+    chart_humidity = create_humidity_chart(weather_data_list)
+    return render_template('index.html', chart_temp=chart_temp, chart_pm2_5=chart_pm2_5, chart_pm10=chart_pm10, chart_humidity=chart_humidity)
 
 @app.route('/changeParameter', methods=['GET', 'POST'])
 def change_parameter():
