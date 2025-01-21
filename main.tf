@@ -11,42 +11,11 @@ provider "google" {
   region  = "us-central1"
 }
 
-resource "google_project_service" "cloud_sql_admin" {
-  service = "sqladmin.googleapis.com"
+resource "google_project_service" "cloud_run_api" {
+  service = "run.googleapis.com"
   project = "gcp-projekt-442288"
+  disable_on_destroy = false
 }
-
-resource "google_sql_database_instance" "instance" {
-  name              = "weather-data"
-  database_version  = "POSTGRES_15"
-  region            = "us-central1"
-  settings {
-    tier = "db-f1-micro"
-    ip_configuration {
-      ipv4_enabled = true
-    }
-  }
-  deletion_protection = false
-
-  depends_on = [google_project_service.cloud_sql_admin]
-}
-
-
-resource "google_sql_database" "database" {
-  name     = "weather-data"
-  instance = google_sql_database_instance.instance.name
-
-  depends_on = [google_sql_database_instance.instance]
-}
-
-resource "google_sql_user" "users" {
-  name     = "postgres"
-  instance = google_sql_database_instance.instance.name
-  password = "postgres"
-
-  depends_on = [google_sql_database_instance.instance]
-}
-
 
 resource "google_storage_bucket" "cloud-functions-bucket" {
   name     = "cloud-functions-bucket-gcp-projekt-442288"
@@ -78,20 +47,13 @@ resource "google_cloudfunctions2_function" "fetch-data-api" {
   service_config {
     max_instance_count = 1
     available_memory   = "256M"
-
-    environment_variables = {
-      DB_USER             = "postgres"
-      DB_PASSWORD         = "postgres"
-      DB_NAME             = "weather-data"
-      DB_CONNECTION_NAME  = google_sql_database_instance.instance.connection_name
-    }
   }
 }
-
 
 resource "google_project_service" "cloud_resource_manager" {
   service = "cloudresourcemanager.googleapis.com"
   project = "gcp-projekt-442288"
+  disable_on_destroy = false
 }
 
 resource "google_project_service" "cloud_scheduler" {
@@ -101,18 +63,11 @@ resource "google_project_service" "cloud_scheduler" {
   depends_on = [google_project_service.cloud_resource_manager]
 }
 
-
-
-
 resource "google_cloud_run_service_iam_member" "member" {
   location = google_cloudfunctions2_function.fetch-data-api.location
   service  = google_cloudfunctions2_function.fetch-data-api.service_config[0].service
   role     = "roles/run.invoker"
   member   = "allUsers"
-}
-
-output "function_uri" {
-  value = google_cloudfunctions2_function.fetch-data-api.service_config[0].uri
 }
 
 resource "google_cloud_scheduler_job" "schedule-fetch-data-api" {
@@ -129,4 +84,47 @@ resource "google_cloud_scheduler_job" "schedule-fetch-data-api" {
   depends_on = [google_cloudfunctions2_function.fetch-data-api]
 }
 
+resource "google_cloud_run_service_iam_member" "all_users" {
+  location = "us-central1" 
+  project  = "gcp-projekt-442288"  
+  service  = google_cloud_run_service.weather_app.name
+
+  role    = "roles/run.invoker"
+  member  = "allUsers" 
+}
+
+resource "google_project_service" "container_registry_api" {
+  service = "containerregistry.googleapis.com"
+}
+
+resource "google_cloud_run_service" "weather_app" {
+  name     = "weather-app-flask"
+  location = "us-central1"
+
+  template {
+    spec {
+      containers {
+        image = "gcr.io/${var.project_id}/app"
+      }
+    }
+  }
+
+  traffic {
+    percent         = 100
+    latest_revision = true
+  }
+
+  depends_on = [
+    google_project_service.cloud_run_api,
+    google_project_service.container_registry_api
+  ]
+}
+
+output "function_uri" {
+  value = google_cloudfunctions2_function.fetch-data-api.service_config[0].uri
+}
+
+output "weather_app_url" {
+  value = google_cloud_run_service.weather_app.status[0].url
+}
 
